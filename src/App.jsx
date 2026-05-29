@@ -8,7 +8,7 @@ const ACTIVITIES = ["Workshop nước hoa", "Workshop cắm hoa", "Cả 2", "Ch�
 const ADMIN_PASSWORD = "Nh@u2005";
 
 async function fetchGuests() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/guests?select=*&order=registered_at.desc`, { headers: HEADERS });
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/guests?select=*`, { headers: HEADERS });
   return res.json();
 }
 async function dbUpdateGuest(id, fields) {
@@ -83,7 +83,6 @@ function DeleteModal({ guest, onConfirm, onCancel }) {
           <div style={{ fontSize: 32, marginBottom: 8 }}>🗑️</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: "#a32d2d" }}>Xóa khách hàng?</div>
           <div style={{ fontSize: 14, color: "#555", marginTop: 6 }}><b>{guest.name}</b> — #{guest.id}</div>
-          <div style={{ fontSize: 12, color: "#aaa", marginTop: 4 }}>Hành động này không thể hoàn tác.</div>
         </div>
         <input type="password" value={pw} onChange={e => { setPw(e.target.value); setError(""); }} onKeyDown={e => e.key === "Enter" && handleConfirm()} placeholder="Nhập mật khẩu Admin..."
           style={{ width: "100%", padding: "11px 14px", borderRadius: 8, fontSize: 14, boxSizing: "border-box", border: `2px solid ${error ? "#e24b4a" : "#ddd"}`, outline: "none", marginBottom: 8 }} autoFocus />
@@ -97,7 +96,8 @@ function DeleteModal({ guest, onConfirm, onCancel }) {
   );
 }
 
-function BreakdownRow({ label, total, checkedIn, expandKey, expanded, onToggle, absentList, onEdit, onDelete }) {
+// Key fix: expandedPresent is passed as prop, not local state
+function BreakdownRow({ label, total, checkedIn, expanded, expandedPresent, onToggle, onTogglePresent, presentList, absentList, onEdit, onDelete }) {
   const absent = total - checkedIn;
   const pct = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
   return (
@@ -105,12 +105,15 @@ function BreakdownRow({ label, total, checkedIn, expandKey, expanded, onToggle, 
       <div style={{ background: "#fff", borderRadius: 12, padding: "14px 18px", boxShadow: "0 1px 5px rgba(0,0,0,0.06)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
           <div style={{ fontWeight: 700, fontSize: 14, color: "#1a1a2e" }}>{label}</div>
-          <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
+          <div style={{ display: "flex", gap: 8, fontSize: 13, flexWrap: "wrap" }}>
             <span style={{ background: "#e8f0fb", color: "#185FA5", borderRadius: 20, padding: "2px 10px", fontWeight: 600 }}>Đăng ký: {total}</span>
-            <span style={{ background: "#eaf3de", color: "#3B6D11", borderRadius: 20, padding: "2px 10px", fontWeight: 600 }}>Đã tới: {checkedIn}</span>
+            <span onClick={checkedIn > 0 ? onTogglePresent : undefined}
+              style={{ background: checkedIn > 0 ? "#eaf3de" : "#f5f5f5", color: checkedIn > 0 ? "#3B6D11" : "#aaa", borderRadius: 20, padding: "2px 10px", fontWeight: 600, cursor: checkedIn > 0 ? "pointer" : "default", userSelect: "none" }}>
+              Đã tới: {checkedIn}{checkedIn > 0 ? (expandedPresent ? " ▲" : " ▼") : ""}
+            </span>
             <span onClick={absent > 0 ? onToggle : undefined}
               style={{ background: absent > 0 ? "#fdecea" : "#f5f5f5", color: absent > 0 ? "#e24b4a" : "#aaa", borderRadius: 20, padding: "2px 10px", fontWeight: 600, cursor: absent > 0 ? "pointer" : "default", userSelect: "none" }}>
-              Chưa tới: {absent} {absent > 0 ? (expanded ? "▲" : "▼") : ""}
+              Chưa tới: {absent}{absent > 0 ? (expanded ? " ▲" : " ▼") : ""}
             </span>
           </div>
         </div>
@@ -119,11 +122,25 @@ function BreakdownRow({ label, total, checkedIn, expandKey, expanded, onToggle, 
         </div>
         <div style={{ fontSize: 11, color: "#aaa", marginTop: 5, textAlign: "right" }}>{pct}% đã check-in</div>
       </div>
+
+      {expandedPresent && checkedIn > 0 && (
+        <div style={{ background: "#f0faf0", border: "1px solid #97C459", borderRadius: 10, padding: "10px 14px", marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: "#3B6D11", fontWeight: 700, marginBottom: 8 }}>Đã check-in ({checkedIn} người):</div>
+          {presentList.map(g => (
+            <div key={g.id} style={{ padding: "6px 0", borderBottom: "0.5px solid #c8e6c9" }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{g.name}</div>
+              <div style={{ fontSize: 12, color: "#888" }}>#{g.id} · {g.activity} · {g.timeslot}</div>
+              <div style={{ fontSize: 11, color: "#3B6D11" }}>✅ {g.checked_in_at} — {g.checked_in_by}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {expanded && absent > 0 && (
         <div style={{ background: "#fff8f8", border: "1px solid #fdd", borderRadius: 10, padding: "10px 14px", marginTop: 4 }}>
           <div style={{ fontSize: 12, color: "#e24b4a", fontWeight: 700, marginBottom: 8 }}>Chưa check-in ({absent} người):</div>
           {absentList.map(g => (
-            <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "0.5px solid #fdd" }}>
+            <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "0.5px solid #fdd" }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{g.name}</div>
                 <div style={{ fontSize: 12, color: "#888" }}>#{g.id} · {g.activity} · {g.timeslot}</div>
@@ -149,7 +166,6 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   async function load() {
-    setLoading(true);
     const data = await fetchGuests();
     setGuests(Array.isArray(data) ? data : []);
     setLastUpdated(new Date().toLocaleTimeString("vi-VN"));
@@ -158,8 +174,10 @@ export default function Dashboard() {
 
   useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);
 
+  // toggle absent list
   function toggle(key) { setExpanded(prev => ({ ...prev, [key]: !prev[key] })); }
-  function togglePresent(key) { setExpanded(prev => ({ ...prev, [`p_${key}`]: !prev[`p_${key}`] })); }
+  // toggle present list — uses "pre_" prefix
+  function togglePresent(key) { setExpanded(prev => ({ ...prev, [`pre_${key}`]: !prev[`pre_${key}`] })); }
 
   const total = guests.length;
   const checkedIn = guests.filter(g => g.checked_in).length;
@@ -189,9 +207,7 @@ export default function Dashboard() {
 
       <div style={{ textAlign: "center", marginBottom: 24 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: "#1a1a2e" }}>📊 Dashboard Sự kiện</div>
-        <div style={{ fontSize: 12, color: "#aaa", marginTop: 4 }}>
-          Tự động cập nhật mỗi 30 giây {lastUpdated && `· Lần cuối: ${lastUpdated}`}
-        </div>
+        <div style={{ fontSize: 12, color: "#aaa", marginTop: 4 }}>Tự động cập nhật mỗi 30 giây{lastUpdated ? ` · Lần cuối: ${lastUpdated}` : ""}</div>
         <button onClick={load} style={{ marginTop: 8, padding: "6px 20px", background: "#185FA5", color: "#fff", border: "none", borderRadius: 20, cursor: "pointer", fontSize: 13 }}>🔄 Làm mới</button>
       </div>
 
@@ -220,9 +236,16 @@ export default function Dashboard() {
             {TIMESLOTS.map(ts => {
               const group = guests.filter(g => g.timeslot === ts);
               const ci = group.filter(g => g.checked_in).length;
-              const absentList = group.filter(g => !g.checked_in);
               const key = `ts_${ts}`;
-              return <BreakdownRow key={ts} label={ts} total={group.length} checkedIn={ci} expandKey={key} expanded={!!expanded[key]} onToggle={() => toggle(key)} absentList={absentList} onEdit={setEditTarget} onDelete={setDeleteTarget} />;
+              return (
+                <BreakdownRow key={ts} label={ts}
+                  total={group.length} checkedIn={ci}
+                  expanded={!!expanded[key]} expandedPresent={!!expanded[`pre_${key}`]}
+                  onToggle={() => toggle(key)} onTogglePresent={() => togglePresent(key)}
+                  presentList={group.filter(g => g.checked_in)}
+                  absentList={group.filter(g => !g.checked_in)}
+                  onEdit={setEditTarget} onDelete={setDeleteTarget} />
+              );
             })}
           </div>
 
@@ -232,9 +255,16 @@ export default function Dashboard() {
               const group = guests.filter(g => g.activity === act);
               if (group.length === 0) return null;
               const ci = group.filter(g => g.checked_in).length;
-              const absentList = group.filter(g => !g.checked_in);
               const key = `act_${act}`;
-              return <BreakdownRow key={act} label={act} total={group.length} checkedIn={ci} expandKey={key} expanded={!!expanded[key]} onToggle={() => toggle(key)} absentList={absentList} onEdit={setEditTarget} onDelete={setDeleteTarget} />;
+              return (
+                <BreakdownRow key={act} label={act}
+                  total={group.length} checkedIn={ci}
+                  expanded={!!expanded[key]} expandedPresent={!!expanded[`pre_${key}`]}
+                  onToggle={() => toggle(key)} onTogglePresent={() => togglePresent(key)}
+                  presentList={group.filter(g => g.checked_in)}
+                  absentList={group.filter(g => !g.checked_in)}
+                  onEdit={setEditTarget} onDelete={setDeleteTarget} />
+              );
             })}
           </div>
         </>
