@@ -159,6 +159,7 @@ export default function Dashboard() {
   useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);
 
   function toggle(key) { setExpanded(prev => ({ ...prev, [key]: !prev[key] })); }
+  function togglePresent(key) { setExpanded(prev => ({ ...prev, [`p_${key}`]: !prev[`p_${key}`] })); }
 
   const total = guests.length;
   const checkedIn = guests.filter(g => g.checked_in).length;
